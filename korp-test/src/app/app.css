@@ -1,0 +1,177 @@
+/* ===== SISTEMA DE GESTÃO - ESTILOS MODERNOS ===== */
+
+:host {
+  display: block;
+  --primary: #0066cc;
+  --primary-foreground: #ffffff;
+  --secondary: #f0f0f0;
+  --foreground: #1a1a1a;
+  --background: #ffffff;
+  --card: #fafafa;
+  --muted-foreground: #666666;
+  --success: #28a745;
+  --warning: #ffc107;
+  --error: #dc3545;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* CONTAINER */
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.min-h-screen {
+  min-height: 100vh;
+}
+
+.bg-background {
+  background-color: var(--background);
+}
+
+.bg-card\/80 {
+  background-color: rgba(250, 250, 250, 0.8);
+}
+
+.bg-primary {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.text-primary {
+  color: var(--primary);
+}
+
+.text-foreground {
+  color: var(--foreground);
+}
+
+.text-muted-foreground {
+  color: var(--muted-foreground);
+}
+
+/* HEADER */
+header {
+  border-bottom: 1px solid #e0e0e0;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+header .container {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  height: 3.5rem;
+}
+
+/* NAVEGAÇÃO */
+nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--muted-foreground);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.nav-link:hover {
+  background-color: var(--secondary);
+  color: var(--foreground);
+}
+
+.nav-link.active {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* MAIN */
+main {
+  padding: 1.5rem 0;
+}
+
+/* UTILITÁRIOS */
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.gap-2 {
+  gap: 0.5rem;
+}
+
+.gap-4 {
+  gap: 1rem;
+}
+
+.gap-6 {
+  gap: 1.5rem;
+}
+
+.mb-6 {
+  margin-bottom: 1.5rem;
+}
+
+.space-y-6 > * + * {
+  margin-top: 1.5rem;
+}
+
+.font-bold {
+  font-weight: 700;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+.text-lg {
+  font-size: 1.125rem;
+}
+
+.text-2xl {
+  font-size: 1.5rem;
+}
+
+.py-6 {
+  padding: 1.5rem 0;
+}
+
+.px-6 {
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.border-b {
+  border-bottom: 1px solid #e0e0e0;
+}
+
+/* STICKY */
+.sticky {
+  position: sticky;
+}
+
+.top-0 {
+  top: 0;
+}
+
+.z-50 {
+  z-index: 50;
+}

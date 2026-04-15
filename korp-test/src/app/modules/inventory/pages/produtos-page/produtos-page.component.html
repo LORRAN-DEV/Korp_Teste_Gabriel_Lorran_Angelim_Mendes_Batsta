@@ -1,0 +1,140 @@
+<div class="space-y-6">
+  <!-- CABEÇALHO -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-foreground">Produtos</h1>
+      <p class="text-muted-foreground text-sm">Gerencie o cadastro de produtos e estoque</p>
+    </div>
+    <button (click)="openModal()" class="btn btn-primary">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+      </svg>
+      Novo Produto
+    </button>
+  </div>
+
+  <!-- ALERTAS -->
+  <div *ngIf="message" class="alert alert-success">
+    <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+    </svg>
+    {{ message }}
+  </div>
+  <div *ngIf="error" class="alert alert-error">
+    <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+    </svg>
+    {{ error }}
+  </div>
+
+  <!-- TABELA DE PRODUTOS -->
+  <div class="card">
+    <div class="overflow-x-auto">
+      <table class="products-table">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Descrição</th>
+            <th>Estoque</th>
+            <th>Preço</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let produto of produtos" class="product-row">
+            <td class="font-medium">{{ produto.codigo }}</td>
+            <td>{{ produto.nome }}</td>
+            <td class="text-center">{{ produto.quantidade_estoque }}</td>
+            <td>{{ formatCurrency(produto.preco_unitario) }}</td>
+            <td class="actions">
+              <button (click)="editProduto(produto)" class="btn btn-sm btn-edit" title="Editar produto">
+                Editar
+              </button>
+              <button (click)="deleteProduto(produto.id)" class="btn btn-sm btn-delete" title="Remover produto">
+                Deletar
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="produtos.length === 0" class="empty-row">
+            <td colspan="5" class="text-center py-8 text-muted-foreground">Nenhum produto cadastrado</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MODAL -->
+  <div *ngIf="showModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>{{ editingId ? 'Editar Produto' : 'Novo Produto' }}</h2>
+        <button (click)="closeModal()" class="btn-close">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div *ngIf="error" class="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">{{ error }}</div>
+        
+        <div class="form-group">
+          <label for="codigo">Código *</label>
+          <input 
+            id="codigo"
+            type="text" 
+            [(ngModel)]="formData.codigo" 
+            placeholder="Ex: PROD001"
+            class="form-input"
+            maxlength="50"
+          >
+        </div>
+        <div class="form-group">
+          <label for="nome">Descrição *</label>
+          <input 
+            id="nome"
+            type="text" 
+            [(ngModel)]="formData.nome" 
+            placeholder="Nome do produto"
+            class="form-input"
+            maxlength="200"
+          >
+        </div>
+        <div class="form-group">
+          <label for="estoque">Saldo (quantidade) *</label>
+          <input 
+            id="estoque"
+            type="number" 
+            [(ngModel)]="formData.quantidade_estoque" 
+            min="0"
+            placeholder="0"
+            class="form-input"
+          >
+        </div>
+        <div class="form-group">
+          <label for="preco">Preço Unitário *</label>
+          <input 
+            id="preco"
+            type="number" 
+            [(ngModel)]="formData.preco_unitario" 
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            class="form-input"
+          >
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="closeModal()" class="btn btn-secondary">Cancelar</button>
+        <button (click)="saveProduto()" [disabled]="loading" class="btn btn-primary">
+          {{ editingId ? 'Salvar Alterações' : 'Cadastrar Produto' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOADING -->
+  <div *ngIf="loading" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-1000">
+    <div class="bg-white rounded-lg p-6 flex flex-col items-center gap-4">
+      <div class="spinner"></div>
+      <p class="text-foreground font-medium">Processando...</p>
+    </div>
+  </div>
+</div>

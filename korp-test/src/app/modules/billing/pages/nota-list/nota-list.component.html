@@ -1,0 +1,181 @@
+<div class="container">
+  <div class="header">
+    <h1>🧾 Notas Fiscais</h1>
+    <a routerLink="/nota-nova" class="btn btn-primary">
+      ➕ Nova Nota
+    </a>
+  </div>
+
+  <div *ngIf="error()" class="alert alert-error">
+    {{ error() }}
+    <button (click)="error.set('')" class="btn-close">✕</button>
+  </div>
+
+  <div *ngIf="loading()" class="loader">
+    <div class="spinner"></div>
+    Carregando notas...
+  </div>
+
+  <div *ngIf="!loading()" class="filters">
+    <input
+      type="text"
+      placeholder="🔍 Buscar por número, cliente ou CPF..."
+      (input)="onSearchChange($any($event.target).value)"
+      class="input"
+    />
+    <select
+      (change)="onStatusFilterChange($any($event.target).value)"
+      class="select">
+      <option value="">Todos os Status</option>
+      <option value="ABERTA">Aberta</option>
+      <option value="IMPRESSA">Fechada</option>
+      <option value="CANCELADA">Cancelada</option>
+    </select>
+  </div>
+
+  <div *ngIf="!loading()" class="table-container">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Número NF</th>
+          <th>Cliente</th>
+          <th>Valor Total</th>
+          <th>Status</th>
+          <th>Data</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let nota of filtredNotas()" [class.impresso]="nota.status === 'IMPRESSA'">
+          <td class="numero">{{ nota.numero_nf }}</td>
+          <td class="cliente">
+            <strong>{{ nota.cliente_nome }}</strong>
+            <small *ngIf="nota.cliente_cpf_cnpj">{{ nota.cliente_cpf_cnpj }}</small>
+          </td>
+          <td class="valor">R$ {{ nota.valor_total.toFixed(2) }}</td>
+          <td>
+            <span [ngClass]="'status-' + nota.status.toLowerCase()">
+              {{ nota.status | statusNota }}
+            </span>
+          </td>
+          <td class="data">{{ nota.data_emissao | date: 'dd/MM/yyyy' }}</td>
+          <td class="actions">
+            <button
+              (click)="viewDetails(nota)"
+              class="btn btn-sm btn-info"
+              [disabled]="printingNotaId() === nota.id"
+              title="Ver detalhes dos itens"
+            >
+              Detalhes
+            </button>
+
+            <button
+              *ngIf="nota.status === 'ABERTA'"
+              (click)="printNota(nota)"
+              class="btn btn-sm btn-print"
+              [disabled]="isAnyPrinting"
+              title=" deduzir estoque"
+            >
+              <ng-container *ngIf="printingNotaId() === nota.id; else normalPrint">
+                <span class="spinner-border spinner-border-sm"></span> Processando...
+              </ng-container>
+              <ng-template #normalPrint>
+                🖨️ Imprimir
+              </ng-template>
+            </button>
+
+            <button
+              (click)="deleteNota(nota.id)"
+              class="btn btn-sm btn-danger"
+              [disabled]="printingNotaId() === nota.id"
+              title="Deletar nota"
+            >
+              Deletar
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div *ngIf="filtredNotas().length === 0" class="empty">
+      <p>Nenhuma nota fiscal encontrada.</p>
+      <a routerLink="/nota-nova" class="btn btn-primary">Criar a primeira nota</a>
+    </div>
+  </div>
+
+  <div *ngIf="showDetailsModal()" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Detalhes da Nota Fiscal</h2>
+        <button (click)="closeDetailsModal()" class="btn-close">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div *ngIf="notaDetails()" class="nota-info">
+          <div class="info-row">
+            <span class="info-label">Número NF:</span>
+            <span class="info-value">{{ notaDetails()!.numero_nf }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Cliente:</span>
+            <span class="info-value">{{ notaDetails()!.cliente_nome }}</span>
+          </div>
+          <div class="info-row" *ngIf="notaDetails()!.cliente_cpf_cnpj">
+            <span class="info-label">CPF/CNPJ:</span>
+            <span class="info-value">{{ notaDetails()!.cliente_cpf_cnpj }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Status:</span>
+            <span 
+              class="status-icon"
+              [ngClass]="'status-' + notaDetails()!.status.toLowerCase()">
+              {{ notaDetails()!.status | statusNota }}
+            </span>
+          </div>
+        </div>
+
+        <div *ngIf="detailsLoading()" class="details-loader">
+          <div class="spinner"></div>
+          Carregando itens...
+        </div>
+
+        <div *ngIf="!detailsLoading()" class="items-table-container">
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>Descrição</th>
+                <th>Quantidade</th>
+                <th>Valor Unitário</th>
+                <th>Valor Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of notaItems()">
+                <td class="item-description">{{ item.produto_nome || 'Produto #' + item.produto_id }}</td>
+                <td class="item-qty">{{ item.quantidade }}</td>
+                <td class="item-price">R$ {{ item.valor_unitario.toFixed(2) }}</td>
+                <td class="item-total">R$ {{ item.valor_total.toFixed(2) }}</td>
+              </tr>
+              <tr *ngIf="notaItems().length === 0" class="empty-row">
+                <td colspan="4" class="text-center">Nenhum item nesta nota</td>
+              </tr>
+            </tbody>
+            <tfoot *ngIf="notaItems().length > 0">
+              <tr>
+                <td colspan="2"></td>
+                <td class="label">Total:</td>
+                <td class="total-amount">
+                  R$ {{ notaItems().reduce((sum, item) => sum + item.valor_total, 0).toFixed(2) }}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="closeDetailsModal()" class="btn btn-secondary">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>

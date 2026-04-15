@@ -1,0 +1,237 @@
+<div class="space-y-6">
+  <!-- CABEÇALHO -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-foreground">
+        {{ isEditMode ? 'Editar Nota Fiscal' : 'Nova Nota Fiscal' }}
+      </h1>
+      <p class="text-muted-foreground text-sm">Gerencie a emissão e impressão de notas fiscais</p>
+    </div>
+  </div>
+
+  <!-- ALERTAS -->
+  <div *ngIf="message" class="alert alert-success">
+    <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+    </svg>
+    {{ message }}
+  </div>
+  <div *ngIf="error" class="alert alert-error">
+    <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+    </svg>
+    {{ error }}
+  </div>
+
+  <!-- FORMULÁRIO -->
+  <div class="card">
+    <div class="p-6">
+
+      <!-- DADOS DO CLIENTE -->
+      <div class="grid grid-cols-2 gap-4 mb-6">
+        <div class="form-group">
+          <label for="cliente">Cliente *</label>
+          <input
+            id="cliente"
+            type="text"
+            [(ngModel)]="nota.cliente_nome"
+            placeholder="Nome ou Razão Social"
+            [disabled]="notaFinalizada || loading"
+            class="form-input"
+          >
+        </div>
+        <div class="form-group">
+          <label for="cpf">CPF/CNPJ</label>
+          <input
+            id="cpf"
+            type="text"
+            [(ngModel)]="nota.cliente_cpf_cnpj"
+            placeholder="000.000.000-00 ou 00.000.000/0000-00"
+            [disabled]="notaFinalizada || loading"
+            class="form-input"
+          >
+        </div>
+      </div>
+
+      <!-- NÚMERO E STATUS -->
+      <div class="grid grid-cols-2 gap-4 mb-6">
+        <div class="form-group">
+          <label for="nf">Número da Nota</label>
+          <input
+            id="nf"
+            type="text"
+            [(ngModel)]="nota.numero_nf"
+            placeholder="Gerado ao salvar"
+            readonly
+            class="form-input readonly"
+          >
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <div class="form-input readonly" [ngClass]="'status-' + nota.status.toLowerCase()">
+            <ng-container [ngSwitch]="nota.status">
+              <span *ngSwitchCase="'ABERTA'">🟢 Aberta</span>
+              <span *ngSwitchCase="'IMPRESSA'">🔒 Fechada</span>
+              <span *ngSwitchCase="'CANCELADA'">❌ Cancelada</span>
+            </ng-container>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADICIONAR PRODUTOS — somente se aberta -->
+      <div *ngIf="nota.status === 'ABERTA'" class="flex gap-2 items-end mb-6">
+        <div class="flex-1 form-group">
+          <label for="produto">Produto</label>
+          <select
+            id="produto"
+            [(ngModel)]="selectedProduct"
+            [disabled]="loading"
+            class="form-input"
+          >
+            <option [ngValue]="null">Selecione um produto...</option>
+            <option *ngFor="let produto of produtos" [ngValue]="produto">
+              {{ produto.codigo }} - {{ produto.nome }} (saldo: {{ produto.quantidade_estoque }})
+            </option>
+          </select>
+        </div>
+        <div class="form-group" style="width: 120px;">
+          <label for="quantidade">Qtd</label>
+          <input
+            id="quantidade"
+            type="number"
+            [(ngModel)]="quantity"
+            min="1"
+            [disabled]="loading"
+            class="form-input"
+          >
+        </div>
+        <button
+          (click)="addProduct()"
+          type="button"
+          [disabled]="!selectedProduct || loading"
+          class="btn btn-secondary"
+          style="padding: 0.625rem 0.875rem;"
+        >
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- TABELA DE PRODUTOS -->
+      <div class="overflow-x-auto">
+        <table class="products-table">
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th class="text-right">Qtd</th>
+              <th class="text-right">Preço Unit.</th>
+              <th class="text-right">Total</th>
+              <th *ngIf="nota.status === 'ABERTA'" class="text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of nota.itens; let i = index" class="product-row">
+              <td class="font-medium">{{ item.codigo }} - {{ item.descricao }}</td>
+              <td class="text-right">
+                <input
+                  *ngIf="nota.status === 'ABERTA'; else soQtd"
+                  type="number"
+                  [(ngModel)]="item.quantidade"
+                  (change)="updateItemTotal(i)"
+                  min="1"
+                  [disabled]="loading"
+                  class="qty-input"
+                />
+                <ng-template #soQtd>{{ item.quantidade }}</ng-template>
+              </td>
+              <td class="text-right">{{ formatCurrency(item.valor_unitario) }}</td>
+              <td class="text-right font-bold">{{ formatCurrency(item.valor_total) }}</td>
+              <td *ngIf="nota.status === 'ABERTA'" class="text-center actions-column">
+                <button
+                  (click)="removeItem(i)"
+                  type="button"
+                  [disabled]="loading"
+                  class="btn-icon delete"
+                  title="Remover item"
+                >
+                  🗑️
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="nota.itens.length === 0" class="empty-row">
+              <td colspan="5" class="text-center py-8 text-muted-foreground">
+                Nenhum produto adicionado
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TOTAL -->
+  <div class="card">
+    <div class="p-6 flex justify-between items-center border-t">
+      <span class="text-lg font-bold">TOTAL DA NOTA:</span>
+      <span class="text-2xl font-bold text-primary">{{ formatCurrency(nota.valor_total) }}</span>
+    </div>
+  </div>
+
+  <!-- BOTÕES -->
+  <div class="flex gap-2 justify-end">
+
+    <!-- SALVAR: somente se aberta -->
+    <button
+      *ngIf="nota.status === 'ABERTA'"
+      (click)="saveNote()"
+      [disabled]="loading"
+      class="btn btn-primary"
+    >
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+      </svg>
+      {{ loading ? '⏳ Salvando...' : 'SALVAR' }}
+    </button>
+
+    <!-- FINALIZAR E IMPRIMIR: somente se aberta e já salva -->
+    <button
+      *ngIf="nota.status === 'ABERTA' && nota.id"
+      (click)="printNote()"
+      [disabled]="loading"
+      class="btn btn-print"
+    >
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4H9m4 0h.01M9 16h.01"></path>
+      </svg>
+      {{ loading ? '⏳ Finalizando...' : '🖨️ FINALIZAR E IMPRIMIR' }}
+    </button>
+
+    <!-- NOTA FECHADA: informativo -->
+    <button *ngIf="notaFinalizada" disabled class="btn btn-secondary">
+      🔒 Nota Fechada
+    </button>
+
+    <!-- VOLTAR -->
+    <button
+      (click)="cancelForm()"
+      [disabled]="loading"
+      class="btn btn-secondary"
+    >
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+      </svg>
+      VOLTAR
+    </button>
+
+  </div>
+
+  <!-- LOADING OVERLAY -->
+  <div *ngIf="loading" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 flex flex-col items-center gap-4">
+      <div class="spinner"></div>
+      <p class="text-foreground font-medium">Processando...</p>
+    </div>
+  </div>
+</div>

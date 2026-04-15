@@ -1,0 +1,161 @@
+<div class="space-y-6">
+  <!-- TÍTULO -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-foreground">Painel de Controle</h1>
+      <p class="text-muted-foreground text-sm">Visão geral do sistema</p>
+    </div>
+    <button 
+      (click)="suggestReposition()" 
+      [disabled]="suggestionsLoading()"
+      class="btn btn-primary"
+      title="Usa IA para analisar estoque e sugerir reposições">
+      {{ suggestionsLoading() ? '⏳ Analisando...' : '💡 Sugerir Reposição' }}
+    </button>
+  </div>
+
+  <!-- GRADE DE CARDS -->
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="card stat-card" [routerLink]="['/produtos']">
+      <div class="flex items-center gap-4 p-6">
+        <div class="icon-box">
+          <svg class="h-8 w-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+          </svg>
+        </div>
+        <div>
+          <p class="text-2xl font-bold text-foreground">{{ productsCount }}</p>
+          <p class="text-sm text-muted-foreground">Produtos Cadastrados</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card stat-card" [routerLink]="['/notas']">
+      <div class="flex items-center gap-4 p-6">
+        <div class="icon-box success">
+          <svg class="h-8 w-8 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+        </div>
+        <div>
+          <p class="text-2xl font-bold text-foreground">{{ openInvoices }}</p>
+          <p class="text-sm text-muted-foreground">Notas Abertas</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card stat-card" [routerLink]="['/notas']">
+      <div class="flex items-center gap-4 p-6">
+        <div class="icon-box secondary">
+          <svg class="h-8 w-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+        </div>
+        <div>
+          <p class="text-2xl font-bold text-foreground">{{ closedInvoices }}</p>
+          <p class="text-sm text-muted-foreground">Notas Fechadas</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card stat-card" [routerLink]="['/produtos']">
+      <div class="flex items-center gap-4 p-6">
+        <div class="icon-box warning">
+          <svg class="h-8 w-8 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4v2m0 4v2M6.228 6.228a9 9 0 1110.544 10.544M9.343 9.343a3 3 0 107.414 0"></path>
+          </svg>
+        </div>
+        <div>
+          <p class="text-2xl font-bold text-foreground">{{ lowStockProducts }}</p>
+          <p class="text-sm text-muted-foreground">Estoque Baixo</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUGESTÕES DE REPOSIÇÃO - PAINEL INLINE -->
+  <div *ngIf="showSuggestions()" style="display:block; width:100%;">
+    <div class="card" style="border: 4px solid #2563eb; border-radius: 0.75rem; display:flex; flex-direction:column; width:100%;">
+
+      <!-- HEADER -->
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:1.5rem; border-bottom:1px solid #e0e0e0; background:white; border-radius:0.75rem 0.75rem 0 0;">
+        <h2 class="text-2xl font-bold text-foreground">💡 Sugestões de Reposição (IA)</h2>
+        <button (click)="closeSuggestions()" style="background:#dc2626; color:white; font-weight:700; padding:0.5rem 1rem; border-radius:0.5rem; border:none; font-size:1.125rem; cursor:pointer;">
+          ✕ Fechar
+        </button>
+      </div>
+
+      <!-- CONTEÚDO -->
+      <div style="padding:1.5rem; display:flex; flex-direction:column; gap:1.5rem; width:100%; box-sizing:border-box;">
+
+        <!-- ERRO -->
+        <div *ngIf="suggestionsError()" class="alert alert-error">
+          {{ suggestionsError() }}
+        </div>
+
+        <div *ngIf="suggestions()">
+
+          <!-- PRODUTOS COM ESTOQUE BAIXO -->
+          <div style="margin-bottom:1.5rem;">
+            <h3 class="font-bold text-foreground" style="font-size:1.125rem; margin-bottom:0.75rem;">📦 Produtos com Estoque Baixo:</h3>
+            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+              <div *ngFor="let produto of suggestions().produtos_com_estoque_baixo"
+                   style="background:white; border:1px solid #e5e7eb; border-left:4px solid #ffc107; border-radius:0.5rem; padding:1rem;">
+                <p class="font-bold text-foreground">{{ produto.nome }}</p>
+                <p class="text-sm text-muted-foreground">Código: {{ produto.codigo }}</p>
+                <p class="text-sm text-muted-foreground">Estoque: {{ produto.estoque_atual }} (Mín: {{ produto.estoque_minimo }})</p>
+                <p class="text-sm font-semibold text-warning">Faltam: {{ produto.falta_quantidade }} unidades</p>
+                <p class="text-sm text-muted-foreground">Custo aproximado: R$ {{ (produto.falta_quantidade * produto.preco_unitario).toFixed(2) }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- ANÁLISE DA IA -->
+          <div style="border:1px solid #bfdbfe; border-radius:0.75rem; background:#eff6ff; padding:1rem; margin-bottom:1.5rem;">
+            <h3 class="font-bold text-foreground" style="font-size:1.125rem; margin-bottom:0.75rem;">📊 Análise da IA:</h3>
+            <div style="background:white; border:1px solid #e5e7eb; border-radius:0.5rem; padding:0.75rem; font-size:0.875rem; font-family:monospace; white-space:pre-wrap; max-height:16rem; overflow-y:auto;">
+              {{ suggestions().analise_completa }}
+            </div>
+          </div>
+
+          <!-- RECOMENDAÇÕES -->
+          <div *ngIf="suggestions().sugestoes_ia" style="border:1px solid #bbf7d0; border-radius:0.75rem; background:#f0fdf4; padding:1rem;">
+            <h3 class="font-bold text-foreground" style="font-size:1.125rem; margin-bottom:0.75rem;">✅ Recomendações:</h3>
+
+            <div *ngIf="suggestions().sugestoes_ia.urgentes?.length > 0" style="margin-bottom:1rem;">
+              <p class="font-bold text-danger" style="margin-bottom:0.5rem;">🚨 Reposição Urgente:</p>
+              <ul style="list-style:disc; padding-left:1.25rem; display:flex; flex-direction:column; gap:0.25rem;">
+                <li *ngFor="let item of suggestions().sugestoes_ia.urgentes" class="text-sm text-foreground">
+                  <strong>{{ item.codigo }}</strong> - {{ item.motivo }}
+                </li>
+              </ul>
+            </div>
+
+            <div *ngIf="suggestions().sugestoes_ia.importante?.length > 0" style="margin-bottom:1rem;">
+              <p class="font-bold text-warning" style="margin-bottom:0.5rem;">⚠️ Reposição Importante:</p>
+              <ul style="list-style:disc; padding-left:1.25rem; display:flex; flex-direction:column; gap:0.25rem;">
+                <li *ngFor="let item of suggestions().sugestoes_ia.importante" class="text-sm text-foreground">
+                  <strong>{{ item.codigo }}</strong> - {{ item.motivo }}
+                </li>
+              </ul>
+            </div>
+
+            <div *ngIf="suggestions().sugestoes_ia.resumo" style="background:#1d4ed8; color:white; border-radius:0.75rem; padding:1rem;">
+              <p style="font-size:0.875rem; line-height:1.6;">📌 {{ suggestions().sugestoes_ia.resumo }}</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div style="padding:1.5rem; border-top:1px solid #e0e0e0; background:white; border-radius:0 0 0.75rem 0.75rem; display:flex; justify-content:flex-end;">
+        <button (click)="closeSuggestions()" style="background:#2563eb; color:white; font-weight:700; padding:0.75rem 2rem; border-radius:0.5rem; border:none; font-size:1.125rem; cursor:pointer;">
+          ✕ Fechar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+</div>
