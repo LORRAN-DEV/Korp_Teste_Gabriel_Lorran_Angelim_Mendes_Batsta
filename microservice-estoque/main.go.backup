@@ -1,0 +1,240 @@
+package main
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	_ "github.com/go-sql-driver/mysql"
+)
+
+var db *sql.DB
+
+func init() {
+	var err error
+	// Mude "password" pela sua senha MySQL se for diferente
+	db, err = sql.Open("mysql", "root:@tcp(localhost:3306)/estoque")
+	if err != nil {
+		log.Fatal("❌ Erro ao conectar ao banco:", err)
+	}
+	
+	if err := db.Ping(); err != nil {
+		log.Fatal("❌ Erro ao testar conexão:", err)
+	}
+	
+	log.Println("✅ Conectado ao banco de estoque")
+}
+
+func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		
+		next(w, r)
+	}
+}
+
+// GET /api/produtos
+func getProdutos(w http.ResponseWriter, r *http.Request) {
+	rows, err := db.Query("SELECT id, codigo, nome, preco_unitario, quantidade_estoque FROM produtos WHERE ativo = true")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	produtos := []map[string]interface{}{}
+	for rows.Next() {
+		var id int
+		var codigo, nome string
+		var preco float64
+		var quantidade int
+
+		err := rows.Scan(&id, &codigo, &nome, &preco, &quantidade)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		produto := map[string]interface{}{
+			"id":                    id,
+			"codigo":                codigo,
+			"nome":                  nome,
+			"preco_unitario":        preco,
+			"quantidade_estoque":    quantidade,
+		}
+		produtos = append(produtos, produto)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(produtos)
+}
+
+// POST /api/produtos
+func createProduto(w http.ResponseWriter, r *http.Request) {
+	var produto map[string]interface{}
+	json.NewDecoder(r.Body).Decode(&produto)
+
+	result, err := db.Exec(
+		"INSERT INTO produtos (codigo, nome, preco_unitario, quantidade_estoque, ativo) VALUES (?, ?, ?, ?, true)",
+		produto["codigo"],
+		produto["nome"],
+		produto["preco_unitario"],
+		produto["quantidade_estoque"],
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	id, _ := result.LastInsertId()
+	produto["id"] = id
+	produto["ativo"] = true
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(produto)
+}
+
+// GET /api/produtos/:id
+func getProduto(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/produtos/")
+	
+	var codigo, nome string
+	var preco float64
+	var quantidade int
+	
+	err := db.QueryRow("SELECT codigo, nome, preco_unitario, quantidade_estoque FROM produtos WHERE id = ?", id).
+		Scan(&codigo, &nome, &preco, &quantidade)
+	
+	if err != nil {
+		http.Error(w, "Produto não encontrado", http.StatusNotFound)
+		return
+	}
+
+	produto := map[string]interface{}{
+		"id":                    id,
+		"codigo":                codigo,
+		"nome":                  nome,
+		"preco_unitario":        preco,
+		"quantidade_estoque":    quantidade,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(produto)
+}
+
+// PUT /api/produtos/:id
+func updateProduto(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/produtos/")
+	
+	var produto map[string]interface{}
+	json.NewDecoder(r.Body).Decode(&produto)
+
+	_, err := db.Exec(
+		"UPDATE produtos SET codigo = ?, nome = ?, preco_unitario = ?, quantidade_estoque = ? WHERE id = ?",
+		produto["codigo"],
+		produto["nome"],
+		produto["preco_unitario"],
+		produto["quantidade_estoque"],
+		id,
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	produto["id"] = id
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(produto)
+}
+
+// DELETE /api/produtos/:id
+func deleteProduto(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/produtos/")
+	
+	_, err := db.Exec("DELETE FROM produtos WHERE id = ?", id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"id":      id,
+		"message": "Produto deletado com sucesso",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// POST /api/produtos/:id/baixar-saldo
+func baixarSaldo(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/produtos/")
+	id = strings.TrimSuffix(id, "/baixar-saldo")
+
+	var qtd map[string]interface{}
+	json.NewDecoder(r.Body).Decode(&qtd)
+	quantidade := int(qtd["quantity"].(float64))
+
+	// Verificar se há estoque
+	var estoque int
+	err := db.QueryRow("SELECT quantidade_estoque FROM produtos WHERE id = ?", id).Scan(&estoque)
+	if err != nil {
+		http.Error(w, "Produto não encontrado", http.StatusNotFound)
+		return
+	}
+
+	if estoque < quantidade {
+		http.Error(w, "Estoque insuficiente", http.StatusBadRequest)
+		return
+	}
+
+	// Decrementar estoque
+	_, err = db.Exec("UPDATE produtos SET quantidade_estoque = quantidade_estoque - ? WHERE id = ?", quantidade, id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"id":       id,
+		"message": "Estoque decrementado com sucesso",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func main() {
+	http.HandleFunc("/api/produtos", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			getProdutos(w, r)
+		} else if r.Method == http.MethodPost {
+			createProduto(w, r)
+		}
+	}))
+
+	http.HandleFunc("/api/produtos/", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/baixar-saldo") {
+			baixarSaldo(w, r)
+		} else if r.Method == http.MethodGet {
+			getProduto(w, r)
+		} else if r.Method == http.MethodPut {
+			updateProduto(w, r)
+		} else if r.Method == http.MethodDelete {
+			deleteProduto(w, r)
+		}
+	}))
+
+	fmt.Println("🚀 MS-Estoque rodando em http://localhost:8082")
+	log.Fatal(http.ListenAndServe(":8082", nil))
+}
