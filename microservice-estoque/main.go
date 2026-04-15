@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -20,14 +21,14 @@ func init() {
 	// Mude "password" pela sua senha MySQL se for diferente
 	db, err = sql.Open("mysql", "root:1234@tcp(localhost:3306)/estoque")
 	if err != nil {
-		log.Fatal("❌ Erro ao conectar ao banco:", err)
+		log.Fatal("âŒ Erro ao conectar ao banco:", err)
 	}
 	
 	if err := db.Ping(); err != nil {
-		log.Fatal("❌ Erro ao testar conexão:", err)
+		log.Fatal("âŒ Erro ao testar conexÃ£o:", err)
 	}
 	
-	log.Println("✅ Conectado ao banco de estoque")
+	log.Println("âœ… Conectado ao banco de estoque")
 }
 
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -119,7 +120,7 @@ func getProduto(w http.ResponseWriter, r *http.Request) {
 		Scan(&codigo, &nome, &preco, &quantidade)
 	
 	if err != nil {
-		http.Error(w, "Produto não encontrado", http.StatusNotFound)
+		http.Error(w, "Produto nÃ£o encontrado", http.StatusNotFound)
 		return
 	}
 
@@ -195,8 +196,8 @@ func baixarSaldo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Concorrência: baixa atômica (não deixa estoque ficar negativo).
-	// Idempotência (opcional): quando vier numero_nota_fiscal, evita dupla baixa por NF+produto (unique index).
+	// ConcorrÃªncia: baixa atÃ´mica (nÃ£o deixa estoque ficar negativo).
+	// IdempotÃªncia (opcional): quando vier numero_nota_fiscal, evita dupla baixa por NF+produto (unique index).
 	if numeroNF != "" {
 		tx, err := db.Begin()
 		if err != nil {
@@ -205,18 +206,18 @@ func baixarSaldo(w http.ResponseWriter, r *http.Request) {
 		}
 		defer tx.Rollback()
 
-		// 1) Registra movimentação; se já existe (unique), considera idempotente e sai sem baixar novamente.
+		// 1) Registra movimentaÃ§Ã£o; se jÃ¡ existe (unique), considera idempotente e sai sem baixar novamente.
 		_, err = tx.Exec(
 			"INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, motivo, numero_nota_fiscal) VALUES (?, 'SAIDA', ?, 'NF', ?)",
 			id, quantidade, numeroNF,
 		)
 		if err != nil {
-			// Erro 1062 (duplicate key) -> já baixou antes para essa NF+produto.
+			// Erro 1062 (duplicate key) -> jÃ¡ baixou antes para essa NF+produto.
 			if strings.Contains(err.Error(), "1062") {
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(map[string]interface{}{
 					"id":        id,
-					"message":   "Baixa de estoque já havia sido aplicada (idempotente)",
+					"message":   "Baixa de estoque jÃ¡ havia sido aplicada (idempotente)",
 					"numero_nf": numeroNF,
 				})
 				return
@@ -239,7 +240,7 @@ func baixarSaldo(w http.ResponseWriter, r *http.Request) {
 			var exists int
 			_ = tx.QueryRow("SELECT COUNT(1) FROM produtos WHERE id = ?", id).Scan(&exists)
 			if exists == 0 {
-				http.Error(w, "Produto não encontrado", http.StatusNotFound)
+				http.Error(w, "Produto nÃ£o encontrado", http.StatusNotFound)
 				return
 			}
 			http.Error(w, "Estoque insuficiente", http.StatusBadRequest)
@@ -264,7 +265,7 @@ func baixarSaldo(w http.ResponseWriter, r *http.Request) {
 			var exists int
 			_ = db.QueryRow("SELECT COUNT(1) FROM produtos WHERE id = ?", id).Scan(&exists)
 			if exists == 0 {
-				http.Error(w, "Produto não encontrado", http.StatusNotFound)
+				http.Error(w, "Produto nÃ£o encontrado", http.StatusNotFound)
 				return
 			}
 			http.Error(w, "Estoque insuficiente", http.StatusBadRequest)
@@ -297,7 +298,7 @@ func estornarSaldo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Compensação + Idempotência: se vier numero_nota_fiscal, remove a marcação da SAIDA para permitir retry.
+	// CompensaÃ§Ã£o + IdempotÃªncia: se vier numero_nota_fiscal, remove a marcaÃ§Ã£o da SAIDA para permitir retry.
 	if numeroNF != "" {
 		tx, err := db.Begin()
 		if err != nil {
@@ -313,7 +314,7 @@ func estornarSaldo(w http.ResponseWriter, r *http.Request) {
 		}
 		affected, _ := res.RowsAffected()
 		if affected == 0 {
-			http.Error(w, "Produto não encontrado", http.StatusNotFound)
+			http.Error(w, "Produto nÃ£o encontrado", http.StatusNotFound)
 			return
 		}
 
@@ -335,7 +336,7 @@ func estornarSaldo(w http.ResponseWriter, r *http.Request) {
 		}
 		affected, _ := res.RowsAffected()
 		if affected == 0 {
-			http.Error(w, "Produto não encontrado", http.StatusNotFound)
+			http.Error(w, "Produto nÃ£o encontrado", http.StatusNotFound)
 			return
 		}
 	}
@@ -397,32 +398,32 @@ func sugerirReposicao(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Enviar para API DeepSeek
-	apiKey := os.Getenv("DEEPSEEK_API_KEY")
+	apiKey := strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY"))
 	if apiKey == "" {
-		http.Error(w, "DEEPSEEK_API_KEY não configurada", http.StatusInternalServerError)
+		http.Error(w, "DEEPSEEK_API_KEY nao configurada", http.StatusInternalServerError)
 		return
 	}
 
 	// Preparar mensagem para DeepSeek
 	produtosJSON, _ := json.MarshalIndent(produtos, "", "  ")
 	prompt := fmt.Sprintf(`
-Você é um consultor de logística. Analise os seguintes produtos com estoque baixo e sugira quais devem ser repostos imediatamente e em qual quantidade:
+VocÃª Ã© um consultor de logÃ­stica. Analise os seguintes produtos com estoque baixo e sugira quais devem ser repostos imediatamente e em qual quantidade:
 
 PRODUTOS COM ESTOQUE BAIXO:
 %s
 
 Considere:
-- Qual produto é mais crítico (aquele que está mais longe do estoque mínimo)
+- Qual produto Ã© mais crÃ­tico (aquele que estÃ¡ mais longe do estoque mÃ­nimo)
 - Qual produto tem maior custo de estoque parado
 - Qual produto teoricamente mais vendido
 
-Forneça uma resposta em JSON com este formato:
+ForneÃ§a uma resposta em JSON com este formato:
 {
   "urgentes": [
     {
       "id": 1,
       "codigo": "P001",
-      "motivo": "Produto X-vendido, estoque crítico"
+      "motivo": "Produto X-vendido, estoque crÃ­tico"
     }
   ],
   "importante": [
@@ -432,7 +433,7 @@ Forneça uma resposta em JSON com este formato:
       "motivo": "Produto com alto valor"
     }
   ],
-  "resumo": "Recomendação geral"
+  "resumo": "RecomendaÃ§Ã£o geral"
 }
 `, string(produtosJSON))
 
@@ -454,10 +455,10 @@ Forneça uma resposta em JSON com este formato:
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Erro ao conectar à API DeepSeek: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Erro ao conectar Ã  API DeepSeek: %v", err), http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
@@ -473,7 +474,7 @@ Forneça uma resposta em JSON com este formato:
 	var deepseekResp map[string]interface{}
 	json.Unmarshal(body, &deepseekResp)
 
-	// Extrair conteúdo da análise
+	// Extrair conteÃºdo da anÃ¡lise
 	var analise string
 	if choices, ok := deepseekResp["choices"].([]interface{}); ok && len(choices) > 0 {
 		if choice, ok := choices[0].(map[string]interface{}); ok {
@@ -488,7 +489,7 @@ Forneça uma resposta em JSON com este formato:
 	// Tentar fazer parse do JSON retornado
 	var sugestoes map[string]interface{}
 	
-	// Se a resposta está em bloco de código markdown, extrair o JSON
+	// Se a resposta estÃ¡ em bloco de cÃ³digo markdown, extrair o JSON
 	if strings.Contains(analise, "```json") {
 		start := strings.Index(analise, "```json") + 7
 		end := strings.LastIndex(analise, "```")
@@ -502,8 +503,9 @@ Forneça uma resposta em JSON com este formato:
 
 	response := map[string]interface{}{
 		"produtos_com_estoque_baixo": produtos,
-		"sugestoes_ia": sugestoes,
+		"sugestoes_ia":              sugestoes,
 		"analise_completa": analise,
+		"status_ia": "IA OK",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -535,6 +537,7 @@ func main() {
 		}
 	}))
 
-	fmt.Println("🚀 MS-Estoque rodando em http://localhost:8082")
+	fmt.Println("ðŸš€ MS-Estoque rodando em http://localhost:8082")
 	log.Fatal(http.ListenAndServe(":8082", nil))
 }
+

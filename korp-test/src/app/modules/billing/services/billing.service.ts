@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { ApiService } from '../../../core/services/api.service';
+import { ApiService } from '../../../core/services/api.service'; // Ajuste o caminho conforme seu projeto
 import { Observable } from 'rxjs';
 
 @Injectable({
@@ -28,7 +28,6 @@ export class BillingService {
     return this.api.deleteNote(id);
   }
 
-  // Novo método para a operação atômica de faturamento + estoque
   finalizeAndPrint(id: number): Observable<any> {
     return this.api.finalizeAndPrint(id);
   }
@@ -43,5 +42,14 @@ export class BillingService {
 
   getNoteItems(notaId: number): Observable<any> {
     return this.api.getNoteItems(notaId);
+  }
+
+  // MÉTODOS DE ESTOQUE (Delegados para o ApiService)
+  deductStock(produtoId: number, quantity: number, numeroNF: string): Observable<any> {
+    return this.api.deductStock(produtoId, quantity, numeroNF);
+  }
+
+  restoreStock(produtoId: number, quantity: number, numeroNF: string): Observable<any> {
+    return this.api.restoreStock(produtoId, quantity, numeroNF);
   }
 }
